@@ -22,7 +22,9 @@ at `/openapi.json`.
 **Products and stock**
 - SKUs are unique and stored in upper case. Prices and stock can't be negative.
 - Every change to stock is recorded as a stock movement (initial stock, sale, return).
-- An order can't take more items than are available: it is refused with 409 and nothing is taken.
+- Stock has two numbers: on the shelf (`on_hand`) and reserved for orders that haven't shipped (`reserved`).
+  Available to sell = on the shelf − reserved.
+- An order can't reserve more items than are available: it is refused with 409 and nothing is reserved.
 
 **Customers and loyalty**
 - E-mail addresses are unique, compared without case.
@@ -40,7 +42,10 @@ at `/openapi.json`.
 
 **Orders**
 - An order has at least one item, each with a quantity of at least 1. The same product twice is one line.
-- Placing an order takes the items from stock, charges subtotal − discount and awards the loyalty points.
+- An order goes **placed → shipped**. Placing it reserves the items, charges subtotal − discount and awards the
+  loyalty points. Shipping takes the reserved items off the shelf.
+- An order can be **cancelled until it ships**: the reservation is released, the customer gets back what they paid
+  and the points the order earned are taken back. A shipped order can't be cancelled (409).
 
 **Returns**
 - Items of an order can be returned, never more of a line than was bought (counting earlier returns).

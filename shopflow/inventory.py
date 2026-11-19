@@ -1,12 +1,13 @@
-"""Stock: how many of each product are on the shelf, and every change to it (the stock movements)."""
+"""Stock: how many of each product are on the shelf, how many of those are reserved for orders that haven't shipped,
+and every change to the shelf (the stock movements)."""
 import sqlite3
 
 from shopflow.errors import Conflict, NotFound
 
 
 def available_of(product: sqlite3.Row | dict) -> int:
-    """How many can still be sold."""
-    return product["on_hand"]
+    """How many can still be sold: on the shelf, minus what open orders have reserved."""
+    return product["on_hand"] - product["reserved"]
 
 
 def _product(conn: sqlite3.Connection, product_id: int) -> sqlite3.Row:
@@ -27,13 +28,24 @@ def receive(conn: sqlite3.Connection, product_id: int, quantity: int, reason: st
     _move(conn, product_id, quantity, reason, None)
 
 
-def take(conn: sqlite3.Connection, product_id: int, quantity: int, order_id: int) -> None:
-    """Sold items leave the shelf."""
+def reserve(conn: sqlite3.Connection, product_id: int, quantity: int, order_id: int) -> None:
+    """Hold items for a placed order; they stay on the shelf until it ships."""
     product = _product(conn, product_id)
     if available_of(product) < quantity:
         raise Conflict(f"Only {available_of(product)} of {product['name']} in stock")
-    conn.execute("UPDATE products SET on_hand = on_hand - ? WHERE id = ?", (quantity, product_id))
-    _move(conn, product_id, -quantity, "sale", order_id)
+    conn.execute("UPDATE products SET reserved = reserved + ? WHERE id = ?", (quantity, product_id))
+
+
+def release(conn: sqlite3.Connection, product_id: int, quantity: int, order_id: int) -> None:
+    """A cancelled order's reservation ends; the items are available again."""
+    conn.execute("UPDATE products SET reserved = reserved - ? WHERE id = ?", (quantity, product_id))
+
+
+def ship(conn: sqlite3.Connection, product_id: int, quantity: int, order_id: int) -> None:
+    """Reserved items leave the shelf."""
+    conn.execute("UPDATE products SET on_hand = on_hand - ?, reserved = reserved - ? WHERE id = ?",
+                 (quantity, quantity, product_id))
+    _move(conn, product_id, -quantity, "shipped", order_id)
 
 
 def put_back(conn: sqlite3.Connection, product_id: int, quantity: int, order_id: int) -> None:

@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS products (
     sku         TEXT NOT NULL UNIQUE,
     name        TEXT NOT NULL,
     price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
-    on_hand     INTEGER NOT NULL DEFAULT 0 CHECK (on_hand >= 0)
+    on_hand     INTEGER NOT NULL DEFAULT 0 CHECK (on_hand >= 0),
+    reserved    INTEGER NOT NULL DEFAULT 0 CHECK (reserved >= 0)
 );
 CREATE TABLE IF NOT EXISTS stock_movements (
     id         INTEGER PRIMARY KEY,

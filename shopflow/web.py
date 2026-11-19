@@ -111,6 +111,7 @@ def product_page(product_id: int) -> HTMLResponse:
         moves = inventory.movements(conn, product_id)
     body = (f"<p>SKU {escape(p['sku'])} · {fmt(p['price_cents'])}</p>"
             f'<p>On the shelf: <span data-testid="on-hand">{p["on_hand"]}</span> · '
+            f'Reserved for open orders: <span data-testid="reserved">{p["reserved"]}</span> · '
             f'Available to sell: <span data-testid="available">{p["available"]}</span></p>'
             "<h2>Stock movements</h2>"
             + table(["Change", "Reason", "Order", "When"],
@@ -186,6 +187,11 @@ def order_page(order_id: int, error: str = "", status: int = 200) -> HTMLRespons
                                                     for r in o["refunds"]], "Refunds")
     options = "".join(f'<option value="{line["id"]}">{escape(line["product_name"])}</option>' for line in o["lines"])
     customer_link = link(f"/customers/{who['id']}", who["name"])
+    actions = "" if o["status"] != "placed" else (
+        f'<form method="post" action="/orders/{o["id"]}/ship" aria-label="Ship order">'
+        '<button type="submit">Mark as shipped</button></form>'
+        f'<form method="post" action="/orders/{o["id"]}/cancel" aria-label="Cancel order">'
+        '<button type="submit">Cancel order</button></form>')
     body = (f"<p>Customer: {customer_link} · "
             f'Status: <span class="status" data-testid="status">{escape(o["status"])}</span></p>'
             f"<p>Subtotal {fmt(o['subtotal_cents'])} · Discount {fmt(o['discount_cents'])}"
@@ -193,7 +199,7 @@ def order_page(order_id: int, error: str = "", status: int = 200) -> HTMLRespons
             f'Total <span data-testid="total">{fmt(o["total_cents"])}</span> · '
             f'Refunded <span data-testid="refunded">{fmt(o["refunded_cents"])}</span> · '
             f"Points earned {o['points_earned']}</p>"
-            + lines + "<h2>Refunds</h2>" + refunds
+            + lines + actions + "<h2>Refunds</h2>" + refunds
             + f"""<form method="post" action="/orders/{o['id']}/returns" aria-label="Return items"><h2>Return items</h2>
 <label for="line">Item</label><select id="line" name="line">{options}</select>
 <label for="rquantity">Quantity</label><input id="rquantity" name="quantity" value="1">
@@ -285,6 +291,28 @@ def install(app: FastAPI) -> None:
                                      f.get("reason", ""))
         except (Invalid, Conflict) as e:
             return order_page(order_id, str(e), 400)
+        except NotFound as e:
+            return not_found(str(e))
+        return RedirectResponse(f"/orders/{order_id}", status_code=303)
+
+    @post("/orders/{order_id}/ship")
+    async def ship_order(order_id: int):
+        try:
+            with db.transaction() as conn:
+                orders.ship(conn, order_id)
+        except Conflict as e:
+            return order_page(order_id, str(e), 409)
+        except NotFound as e:
+            return not_found(str(e))
+        return RedirectResponse(f"/orders/{order_id}", status_code=303)
+
+    @post("/orders/{order_id}/cancel")
+    async def cancel_order(order_id: int):
+        try:
+            with db.transaction() as conn:
+                orders.cancel(conn, order_id)
+        except Conflict as e:
+            return order_page(order_id, str(e), 409)
         except NotFound as e:
             return not_found(str(e))
         return RedirectResponse(f"/orders/{order_id}", status_code=303)

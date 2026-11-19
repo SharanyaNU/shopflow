@@ -28,6 +28,9 @@ def seed_if_empty() -> None:
         coupons.create_coupon(conn, "TENOFF", "fixed", 1000, min_subtotal_cents=5000)
         first = orders.place(conn, customer[0], [{"product_id": product[0], "quantity": 2},
                                                  {"product_id": product[2], "quantity": 3}], "WELCOME10")
-        orders.place(conn, customer[1], [{"product_id": product[1], "quantity": 1}])
+        second = orders.place(conn, customer[1], [{"product_id": product[1], "quantity": 1}])
+        orders.ship(conn, first["id"])
+        orders.ship(conn, second["id"])
+        orders.place(conn, customer[2], [{"product_id": product[4], "quantity": 2}])
         returns.return_items(conn, first["id"], [{"line_id": first["lines"][0]["id"], "quantity": 1}],
                              "Arrived broken")

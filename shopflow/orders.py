@@ -1,9 +1,12 @@
-"""Orders: a customer buys some products, optionally with a coupon. Placing an order takes the items from stock,
-charges the discounted total and awards loyalty points for it."""
+"""Orders: a customer buys some products, optionally with a coupon.
+
+An order goes placed -> shipped. Placing it reserves the items, charges the discounted total and awards loyalty points;
+shipping takes the items off the shelf. Until it ships it can be cancelled: the reservation is released, the customer
+gets their money back and the points the order earned are taken back."""
 import sqlite3
 
 from shopflow import catalog, coupons, customers, inventory, loyalty, pricing
-from shopflow.errors import Invalid, NotFound
+from shopflow.errors import Conflict, Invalid, NotFound
 
 
 def _wanted(items: list[dict]) -> dict[int, int]:
@@ -32,16 +35,39 @@ def place(conn: sqlite3.Connection, customer_id: int, items: list[dict], coupon_
     points = loyalty.points_for(quote.total_cents)
     order_id = conn.execute(
         "INSERT INTO orders (customer_id, status, subtotal_cents, discount_cents, total_cents, coupon_code, "
-        "points_earned) VALUES (?, 'completed', ?, ?, ?, ?, ?)",
+        "points_earned) VALUES (?, 'placed', ?, ?, ?, ?, ?)",
         (customer_id, quote.subtotal_cents, quote.discount_cents, quote.total_cents, quote.coupon_code, points),
     ).lastrowid
     for product_id, quantity in wanted.items():
-        inventory.take(conn, product_id, quantity, order_id)
+        inventory.reserve(conn, product_id, quantity, order_id)
         conn.execute("INSERT INTO order_lines (order_id, product_id, quantity, unit_price_cents) VALUES (?, ?, ?, ?)",
                      (order_id, product_id, quantity, products[product_id]["price_cents"]))
     if quote.coupon_code:
         coupons.record_use(conn, quote.coupon_code)
     loyalty.award(conn, customer_id, points)
+    return get_order(conn, order_id)
+
+
+def ship(conn: sqlite3.Connection, order_id: int) -> dict:
+    order = get_order(conn, order_id)
+    if order["status"] != "placed":
+        raise Conflict(f"Order {order_id} is {order['status']}: only placed orders can be shipped")
+    for line in order["lines"]:
+        inventory.ship(conn, line["product_id"], line["quantity"], order_id)
+    conn.execute("UPDATE orders SET status = 'shipped' WHERE id = ?", (order_id,))
+    return get_order(conn, order_id)
+
+
+def cancel(conn: sqlite3.Connection, order_id: int) -> dict:
+    order = get_order(conn, order_id)
+    if order["status"] != "placed":
+        raise Conflict(f"Order {order_id} is {order['status']}: only orders that haven't shipped can be cancelled")
+    for line in order["lines"]:
+        inventory.release(conn, line["product_id"], line["quantity"], order_id)
+    conn.execute("INSERT INTO refunds (order_id, amount_cents, reason) VALUES (?, ?, 'order cancelled')",
+                 (order_id, order["total_cents"]))
+    loyalty.revoke(conn, order["customer_id"], order["points_earned"])
+    conn.execute("UPDATE orders SET status = 'cancelled' WHERE id = ?", (order_id,))
     return get_order(conn, order_id)
 
 

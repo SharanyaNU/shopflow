@@ -28,6 +28,7 @@ class Product(BaseModel):
     name: str
     price_cents: int
     on_hand: int
+    reserved: int
     available: int
 
 
@@ -201,7 +202,8 @@ def list_orders(customer_id: int | None = None):
 @router.post("/orders", response_model=Order, status_code=201, tags=["orders"],
              responses={**NOT_FOUND, **CONFLICT, **INVALID})
 def place_order(body: OrderIn):
-    """Takes the items from stock, applies the coupon and awards loyalty points. 409 when there isn't enough stock."""
+    """Reserves the items, applies the coupon and awards loyalty points; the order starts as placed. 409 when there
+    isn't enough stock available."""
     with db.transaction() as conn:
         return orders.place(conn, body.customer_id, [i.model_dump() for i in body.items], body.coupon_code)
 
@@ -210,6 +212,20 @@ def place_order(body: OrderIn):
 def get_order(order_id: int):
     with db.transaction() as conn:
         return orders.get_order(conn, order_id)
+
+
+@router.post("/orders/{order_id}/ship", response_model=Order, tags=["orders"], responses={**NOT_FOUND, **CONFLICT})
+def ship_order(order_id: int):
+    """The reserved items leave the shelf; the order becomes shipped. 409 unless the order is placed."""
+    with db.transaction() as conn:
+        return orders.ship(conn, order_id)
+
+
+@router.post("/orders/{order_id}/cancel", response_model=Order, tags=["orders"], responses={**NOT_FOUND, **CONFLICT})
+def cancel_order(order_id: int):
+    """Releases the reservation, refunds the order and takes back its points. 409 once the order has shipped."""
+    with db.transaction() as conn:
+        return orders.cancel(conn, order_id)
 
 
 @router.post("/orders/{order_id}/returns", response_model=ReturnOut, status_code=201, tags=["returns"],
