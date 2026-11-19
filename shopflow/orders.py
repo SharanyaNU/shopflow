@@ -2,7 +2,7 @@
 charges the discounted total and awards loyalty points for it."""
 import sqlite3
 
-from shopflow import catalog, customers, inventory, loyalty, pricing
+from shopflow import catalog, coupons, customers, inventory, loyalty, pricing
 from shopflow.errors import Invalid, NotFound
 
 
@@ -39,6 +39,8 @@ def place(conn: sqlite3.Connection, customer_id: int, items: list[dict], coupon_
         inventory.take(conn, product_id, quantity, order_id)
         conn.execute("INSERT INTO order_lines (order_id, product_id, quantity, unit_price_cents) VALUES (?, ?, ?, ?)",
                      (order_id, product_id, quantity, products[product_id]["price_cents"]))
+    if quote.coupon_code:
+        coupons.record_use(conn, quote.coupon_code)
     loyalty.award(conn, customer_id, points)
     return get_order(conn, order_id)
 

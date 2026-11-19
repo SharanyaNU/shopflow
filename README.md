@@ -30,8 +30,13 @@ at `/openapi.json`.
 - When money is refunded, the points that money earned are taken back. A balance never goes below 0.
 
 **Coupons**
-- A coupon takes a percentage (1–100) off the order's subtotal, rounded down to a cent.
-- Codes are case-insensitive. Unknown or inactive codes are refused with 400.
+- A coupon takes either a percentage (1–100) off the order's subtotal, rounded down to a cent, or a fixed amount.
+- A fixed coupon never takes more than the subtotal: an order's total is never below $0.00.
+- Minimum spend: the coupon needs a subtotal of **at least** `min_subtotal_cents`.
+- `valid_until` is the last day the coupon can be used (inclusive).
+- `max_uses`: the coupon can be used by that many orders in total, then it is refused.
+- Codes are kept as typed but are case-insensitive: `Spring15`, `SPRING15` and `spring15` are the same coupon.
+- Unknown, inactive, expired or used-up codes, and orders below the minimum spend, are refused with 400.
 
 **Orders**
 - An order has at least one item, each with a quantity of at least 1. The same product twice is one line.

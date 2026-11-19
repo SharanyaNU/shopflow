@@ -205,12 +205,21 @@ def order_page(order_id: int, error: str = "", status: int = 200) -> HTMLRespons
 def coupons_page(error: str = "", status: int = 200) -> HTMLResponse:
     with db.transaction() as conn:
         everything = coupons.list_coupons(conn)
-    rows = [[escape(c["code"]), f"{c['percent_off']}%", "yes" if c["active"] else "no"] for c in everything]
+    rows = [[escape(c["code"]), f"{c['value']}%" if c["kind"] == "percent" else fmt(c["value"]),
+             fmt(c["min_subtotal_cents"]), escape(c["valid_until"] or "-"),
+             f"{c['uses']} / {c['max_uses']}" if c["max_uses"] else str(c["uses"]),
+             "yes" if c["active"] else "no"] for c in everything]
     form = """<form method="post" action="/coupons" aria-label="Add a coupon"><h2>Add a coupon</h2>
 <label for="code">Code</label><input id="code" name="code" required>
-<label for="percent">Percent off</label><input id="percent" name="percent_off" required>
+<label for="kind">Kind</label><select id="kind" name="kind"><option value="percent">Percent off</option>
+<option value="fixed">Fixed amount off</option></select>
+<label for="value">Value (percent, or $ for a fixed amount)</label><input id="value" name="value" required>
+<label for="min">Minimum spend ($)</label><input id="min" name="min_spend" value="0">
+<label for="until">Valid until (YYYY-MM-DD, optional)</label><input id="until" name="valid_until">
+<label for="maxuses">Maximum uses (optional)</label><input id="maxuses" name="max_uses">
 <p><button type="submit">Add coupon</button></p></form>"""
-    return page("Coupons", table(["Code", "Discount", "Active"], rows, "Coupons") + form, error, status)
+    return page("Coupons", table(["Code", "Discount", "Minimum spend", "Valid until", "Uses", "Active"], rows,
+                                 "Coupons") + form, error, status)
 
 
 def install(app: FastAPI) -> None:
@@ -285,7 +294,11 @@ def install(app: FastAPI) -> None:
         f = await form_data(request)
         try:
             with db.transaction() as conn:
-                coupons.create_coupon(conn, f.get("code", ""), to_int(f.get("percent_off", ""), "Percent off"))
+                kind = f.get("kind") or "percent"
+                value = to_int(f.get("value", ""), "Value") if kind == "percent" else to_cents(f.get("value", ""))
+                coupons.create_coupon(conn, f.get("code", ""), kind, value, to_cents(f.get("min_spend") or "0"),
+                                      f.get("valid_until") or None,
+                                      to_int(f["max_uses"], "Maximum uses") if f.get("max_uses") else None)
         except (Invalid, Conflict) as e:
             return coupons_page(str(e), 400)
         return RedirectResponse("/coupons", status_code=303)

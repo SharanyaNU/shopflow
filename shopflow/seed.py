@@ -24,7 +24,8 @@ def seed_if_empty() -> None:
             return
         product = [catalog.create_product(conn, *p)["id"] for p in PRODUCTS]
         customer = [customers.create_customer(conn, *c)["id"] for c in CUSTOMERS]
-        coupons.create_coupon(conn, "WELCOME10", 10)
+        coupons.create_coupon(conn, "WELCOME10", "percent", 10)
+        coupons.create_coupon(conn, "TENOFF", "fixed", 1000, min_subtotal_cents=5000)
         first = orders.place(conn, customer[0], [{"product_id": product[0], "quantity": 2},
                                                  {"product_id": product[2], "quantity": 3}], "WELCOME10")
         orders.place(conn, customer[1], [{"product_id": product[1], "quantity": 1}])

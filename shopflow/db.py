@@ -30,9 +30,14 @@ CREATE TABLE IF NOT EXISTS customers (
     points INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS coupons (
-    code        TEXT PRIMARY KEY,
-    percent_off INTEGER NOT NULL CHECK (percent_off BETWEEN 1 AND 100),
-    active      INTEGER NOT NULL DEFAULT 1
+    code               TEXT PRIMARY KEY,
+    kind               TEXT NOT NULL CHECK (kind IN ('percent', 'fixed')),
+    value              INTEGER NOT NULL CHECK (value > 0),
+    min_subtotal_cents INTEGER NOT NULL DEFAULT 0,
+    valid_until        TEXT,
+    max_uses           INTEGER,
+    uses               INTEGER NOT NULL DEFAULT 0,
+    active             INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS orders (
     id             INTEGER PRIMARY KEY,
