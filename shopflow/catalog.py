@@ -4,6 +4,8 @@ import sqlite3
 from shopflow import inventory
 from shopflow.errors import Conflict, Invalid, NotFound
 
+PER_PAGE = 5
+
 
 def _out(row: sqlite3.Row) -> dict:
     return {"id": row["id"], "sku": row["sku"], "name": row["name"], "price_cents": row["price_cents"],
@@ -12,6 +14,19 @@ def _out(row: sqlite3.Row) -> dict:
 
 def list_products(conn: sqlite3.Connection) -> list[dict]:
     return [_out(r) for r in conn.execute("SELECT * FROM products ORDER BY name, id").fetchall()]
+
+
+def search(products: list[dict], q: str) -> list[dict]:
+    """Products whose name or SKU contains the search text, ignoring case."""
+    q = q.strip()
+    return [p for p in products if q in p["name"] or q in p["sku"]] if q else products
+
+
+def page_of(items: list[dict], page: int, per_page: int = PER_PAGE) -> tuple[list[dict], int]:
+    """One page of the items (pages start at 1) and how many pages there are."""
+    pages = max(1, -(-len(items) // per_page))
+    start = (max(page, 1) - 1) * per_page
+    return items[start:start + per_page - 1], pages
 
 
 def get_product(conn: sqlite3.Connection, product_id: int) -> dict:
