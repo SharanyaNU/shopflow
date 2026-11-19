@@ -7,7 +7,7 @@ from shopflow.errors import Conflict, Invalid, NotFound
 
 def _out(row: sqlite3.Row) -> dict:
     return {"id": row["id"], "sku": row["sku"], "name": row["name"], "price_cents": row["price_cents"],
-            "on_hand": row["on_hand"], "available": inventory.available_of(row)}
+            "on_hand": row["on_hand"], "reserved": row["reserved"], "available": inventory.available_of(row)}
 
 
 def list_products(conn: sqlite3.Connection) -> list[dict]:
