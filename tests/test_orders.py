@@ -15,7 +15,7 @@ def test_coupon_takes_a_percentage_off(client, make_product, make_customer, plac
     """A percent coupon takes that share of the subtotal off; codes work in any case."""
     lamp = make_product(price_cents=2500)
     asha = make_customer()
-    client.post("/api/coupons", json={"code": "SAVE10", "percent_off": 10})
+    client.post("/api/coupons", json={"code": "SAVE10", "kind": "percent", "value": 10})
     order = place_order(asha["id"], [(lamp["id"], 2)], "save10").json()
     assert order["subtotal_cents"] == 5000
     assert order["discount_cents"] == 500

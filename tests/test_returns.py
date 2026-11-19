@@ -2,7 +2,7 @@ def test_return_refunds_the_discounted_price_and_restocks(client, make_product, 
     """A returned item refunds what was paid for it (after the coupon) and goes back into stock."""
     lamp = make_product(price_cents=2000, on_hand=5)
     asha = make_customer()
-    client.post("/api/coupons", json={"code": "TWENTY", "percent_off": 20})
+    client.post("/api/coupons", json={"code": "TWENTY", "kind": "percent", "value": 20})
     order = place_order(asha["id"], [(lamp["id"], 2)], "TWENTY").json()
     r = client.post(f"/api/orders/{order['id']}/returns",
                     json={"items": [{"line_id": order["lines"][0]["id"], "quantity": 1}]})

@@ -652,9 +652,43 @@
             "type": "string",
             "title": "Code"
           },
-          "percent_off": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "value": {
             "type": "integer",
-            "title": "Percent Off"
+            "title": "Value"
+          },
+          "min_subtotal_cents": {
+            "type": "integer",
+            "title": "Min Subtotal Cents"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "max_uses": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Uses"
+          },
+          "uses": {
+            "type": "integer",
+            "title": "Uses"
           },
           "active": {
             "type": "boolean",
@@ -664,7 +698,12 @@
         "type": "object",
         "required": [
           "code",
-          "percent_off",
+          "kind",
+          "value",
+          "min_subtotal_cents",
+          "valid_until",
+          "max_uses",
+          "uses",
           "active"
         ],
         "title": "Coupon"
@@ -677,17 +716,59 @@
             "minLength": 3,
             "title": "Code"
           },
-          "percent_off": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "percent",
+              "fixed"
+            ],
+            "title": "Kind",
+            "default": "percent"
+          },
+          "value": {
             "type": "integer",
-            "maximum": 100.0,
             "minimum": 1.0,
-            "title": "Percent Off"
+            "title": "Value",
+            "description": "percent: 1-100 percent off; fixed: cents off"
+          },
+          "min_subtotal_cents": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Min Subtotal Cents",
+            "description": "the coupon needs a subtotal of at least this",
+            "default": 0
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until",
+            "description": "last day the coupon can be used (inclusive)"
+          },
+          "max_uses": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Uses",
+            "description": "how many orders can use it in total"
           }
         },
         "type": "object",
         "required": [
           "code",
-          "percent_off"
+          "value"
         ],
         "title": "CouponIn"
       },

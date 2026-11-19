@@ -1,5 +1,8 @@
 """The JSON API under /api. Business rules live in the modules it calls; this file only checks shapes and maps
 errors to status codes (404 not found, 409 conflict, 400 invalid request, 422 malformed body)."""
+from datetime import date
+from typing import Literal
+
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -42,12 +45,21 @@ class Customer(BaseModel):
 
 class CouponIn(BaseModel):
     code: str = Field(min_length=3, max_length=30)
-    percent_off: int = Field(ge=1, le=100)
+    kind: Literal["percent", "fixed"] = "percent"
+    value: int = Field(ge=1, description="percent: 1-100 percent off; fixed: cents off")
+    min_subtotal_cents: int = Field(0, ge=0, description="the coupon needs a subtotal of at least this")
+    valid_until: date | None = Field(None, description="last day the coupon can be used (inclusive)")
+    max_uses: int | None = Field(None, ge=1, description="how many orders can use it in total")
 
 
 class Coupon(BaseModel):
     code: str
-    percent_off: int
+    kind: str
+    value: int
+    min_subtotal_cents: int
+    valid_until: str | None
+    max_uses: int | None
+    uses: int
     active: bool
 
 
@@ -176,7 +188,8 @@ def list_coupons():
 @router.post("/coupons", response_model=Coupon, status_code=201, tags=["coupons"], responses={**CONFLICT, **INVALID})
 def create_coupon(body: CouponIn):
     with db.transaction() as conn:
-        return coupons.create_coupon(conn, body.code, body.percent_off)
+        return coupons.create_coupon(conn, body.code, body.kind, body.value, body.min_subtotal_cents,
+                                     body.valid_until.isoformat() if body.valid_until else None, body.max_uses)
 
 
 @router.get("/orders", response_model=list[OrderSummary], tags=["orders"])
