@@ -11,6 +11,40 @@ def test_order_takes_stock_and_awards_points(client, make_product, make_customer
     assert client.get(f"/api/customers/{asha['id']}").json()["points"] == 75
 
 
+def test_order_is_placed_then_shipped(client, make_product, make_customer, place_order):
+    """An order is reserved when placed and leaves the shelf when it ships."""
+    lamp = make_product(on_hand=10)
+    asha = make_customer()
+    order = place_order(asha["id"], [(lamp["id"], 3)]).json()
+    assert order["status"] == "placed"
+    product = client.get(f"/api/products/{lamp['id']}").json()
+    assert (product["on_hand"], product["reserved"], product["available"]) == (10, 3, 7)
+    shipped = client.post(f"/api/orders/{order['id']}/ship").json()
+    assert shipped["status"] == "shipped"
+    product = client.get(f"/api/products/{lamp['id']}").json()
+    assert (product["on_hand"], product["reserved"], product["available"]) == (7, 0, 7)
+
+
+def test_cancel_releases_stock_and_refunds(client, make_product, make_customer, place_order):
+    """Cancelling an unshipped order frees its stock, refunds it and takes back its points."""
+    lamp = make_product(price_cents=2500, on_hand=10)
+    asha = make_customer()
+    order = place_order(asha["id"], [(lamp["id"], 2)]).json()
+    cancelled = client.post(f"/api/orders/{order['id']}/cancel").json()
+    assert cancelled["status"] == "cancelled"
+    assert cancelled["refunded_cents"] == 5000
+    assert client.get(f"/api/products/{lamp['id']}").json()["available"] == 10
+    assert client.get(f"/api/customers/{asha['id']}").json()["points"] == 0
+
+
+def test_shipped_order_cannot_be_cancelled(client, make_product, make_customer, place_order):
+    lamp = make_product()
+    asha = make_customer()
+    order = place_order(asha["id"], [(lamp["id"], 1)]).json()
+    client.post(f"/api/orders/{order['id']}/ship")
+    assert client.post(f"/api/orders/{order['id']}/cancel").status_code == 409
+
+
 def test_coupon_takes_a_percentage_off(client, make_product, make_customer, place_order):
     """A percent coupon takes that share of the subtotal off; codes work in any case."""
     lamp = make_product(price_cents=2500)
