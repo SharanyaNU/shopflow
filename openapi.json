@@ -442,7 +442,7 @@
           "orders"
         ],
         "summary": "Place Order",
-        "description": "Takes the items from stock, applies the coupon and awards loyalty points. 409 when there isn't enough stock.",
+        "description": "Reserves the items, applies the coupon and awards loyalty points; the order starts as placed. 409 when there\nisn't enough stock available.",
         "operationId": "place_order_api_orders_post",
         "requestBody": {
           "required": true,
@@ -539,6 +539,132 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{order_id}/ship": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Ship Order",
+        "description": "The reserved items leave the shelf; the order becomes shipped. 409 unless the order is placed.",
+        "operationId": "ship_order_api_orders__order_id__ship_post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not allowed in the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{order_id}/cancel": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Cancel Order",
+        "description": "Releases the reservation, refunds the order and takes back its points. 409 once the order has shipped.",
+        "operationId": "cancel_order_api_orders__order_id__cancel_post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not allowed in the current state",
             "content": {
               "application/json": {
                 "schema": {
@@ -1079,6 +1205,10 @@
             "type": "integer",
             "title": "On Hand"
           },
+          "reserved": {
+            "type": "integer",
+            "title": "Reserved"
+          },
           "available": {
             "type": "integer",
             "title": "Available"
@@ -1091,6 +1221,7 @@
           "name",
           "price_cents",
           "on_hand",
+          "reserved",
           "available"
         ],
         "title": "Product"
