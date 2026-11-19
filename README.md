@@ -21,7 +21,9 @@ at `/openapi.json`.
 
 **Products and stock**
 - SKUs are unique and stored in upper case. Prices and stock can't be negative.
-- Every change to stock is recorded as a stock movement (initial stock, sale, return).
+- Every change to stock is recorded as a stock movement (initial stock, shipped, return).
+- Catalogue search matches the product's name or SKU, ignoring case. The catalogue page shows 5 products per page.
+- Best sellers: units in orders that weren't cancelled, minus units returned. The home page shows the top 3.
 - Stock has two numbers: on the shelf (`on_hand`) and reserved for orders that haven't shipped (`reserved`).
   Available to sell = on the shelf − reserved.
 - An order can't reserve more items than are available: it is refused with 409 and nothing is reserved.

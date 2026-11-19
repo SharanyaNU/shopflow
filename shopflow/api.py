@@ -3,11 +3,11 @@ errors to status codes (404 not found, 409 conflict, 400 invalid request, 422 ma
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from shopflow import catalog, coupons, customers, db, orders, returns
+from shopflow import catalog, coupons, customers, db, orders, reports, returns
 from shopflow.errors import Conflict, Invalid, NotFound
 
 
@@ -144,9 +144,15 @@ def health() -> dict:
 
 
 @router.get("/products", response_model=list[Product], tags=["products"])
-def list_products():
+def list_products(q: str = "", sort: Literal["name", "best_selling"] = "name",
+                  page: int | None = Query(None, ge=1), per_page: int = Query(catalog.PER_PAGE, ge=1, le=100)):
+    """q: only products whose name or SKU contains it (any case). sort=best_selling: most units sold first. page: one
+    page of per_page products (pages start at 1); without it, every product."""
     with db.transaction() as conn:
-        return catalog.list_products(conn)
+        products = catalog.search(catalog.list_products(conn), q)
+        if sort == "best_selling":
+            products = reports.best_sellers(conn, products)
+    return catalog.page_of(products, page, per_page)[0] if page else products
 
 
 @router.post("/products", response_model=Product, status_code=201, tags=["products"], responses={**CONFLICT, **INVALID})

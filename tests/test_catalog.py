@@ -18,6 +18,14 @@ def test_negative_price_is_rejected(client):
     assert r.status_code == 422
 
 
+def test_search_finds_products_by_name(client, make_product):
+    """Searching the catalogue finds products by part of their name."""
+    make_product(sku="LAMP-01", name="Desk lamp")
+    make_product(sku="MUG-01", name="Coffee mug")
+    found = client.get("/api/products", params={"q": "lamp"}).json()
+    assert [p["sku"] for p in found] == ["LAMP-01"]
+
+
 def test_unknown_product_is_404(client):
     assert client.get("/api/products/999").status_code == 404
 

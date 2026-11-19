@@ -1,12 +1,12 @@
 """The back-office pages: plain HTML forms that call the same modules as the API."""
 from decimal import Decimal, InvalidOperation
 from html import escape
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote_plus
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from shopflow import catalog, coupons, customers, db, inventory, orders, returns
+from shopflow import catalog, coupons, customers, db, inventory, orders, reports, returns
 from shopflow.errors import Conflict, Invalid, NotFound
 from shopflow.money import fmt
 
@@ -76,9 +76,13 @@ def home() -> HTMLResponse:
     with db.transaction() as conn:
         products = catalog.list_products(conn)
         recent = orders.list_orders(conn)[:5]
+        best = reports.best_sellers(conn, products, 3)
     low = [p for p in products if p["available"] < 5]
     body = (f"<p>{len(products)} products · {len(recent)} recent orders</p>"
-            "<h2>Low stock</h2>" + table(["Product", "Available"],
+            "<h2>Best sellers</h2>" + table(["Product", "Units sold"],
+                                            [[link(f"/products/{p['id']}", p["name"]), str(p["units_sold"])]
+                                             for p in best], "Best sellers")
+            + "<h2>Low stock</h2>" + table(["Product", "Available"],
                                          [[link(f"/products/{p['id']}", p["name"]), str(p["available"])]
                                           for p in low], "Low stock")
             + "<h2>Recent orders</h2>" + table(["Order", "Customer", "Status", "Total"],
@@ -88,18 +92,33 @@ def home() -> HTMLResponse:
     return page("ShopFlow back office", body)
 
 
-def products_page(error: str = "", status: int = 200) -> HTMLResponse:
+def products_page(error: str = "", status: int = 200, q: str = "", page_no: int = 1,
+                  sort: str = "name") -> HTMLResponse:
     with db.transaction() as conn:
-        products = catalog.list_products(conn)
+        products = catalog.search(catalog.list_products(conn), q)
+        if sort == "best_selling":
+            products = reports.best_sellers(conn, products)
+    shown, pages = catalog.page_of(products, page_no)
     rows = [[link(f"/products/{p['id']}", p["name"]), escape(p["sku"]), fmt(p["price_cents"]), str(p["available"])]
-            for p in products]
+            for p in shown]
+    query = f"q={quote_plus(q)}&sort={quote_plus(sort)}"
+    search = (f'<form method="get" action="/products" role="search" aria-label="Search products">'
+              f'<label for="q">Search</label><input id="q" name="q" value="{escape(q)}">'
+              f'<input type="hidden" name="sort" value="{escape(sort)}"><button type="submit">Search</button></form>'
+              f'<p>Sort: <a href="/products?q={quote_plus(q)}&sort=name">Name</a> · '
+              f'<a href="/products?q={quote_plus(q)}&sort=best_selling">Best sellers first</a></p>')
+    paging = (f'<nav aria-label="Pages"><p>Page {page_no} of {pages} · {len(products)} products '
+              + (f'· <a href="/products?{query}&page={page_no - 1}">Previous page</a> ' if page_no > 1 else "")
+              + (f'· <a href="/products?{query}&page={page_no + 1}">Next page</a>' if page_no < pages else "")
+              + "</p></nav>")
     form = """<form method="post" action="/products" aria-label="Add a product"><h2>Add a product</h2>
 <label for="sku">SKU</label><input id="sku" name="sku" required>
 <label for="name">Name</label><input id="name" name="name" required>
 <label for="price">Price ($)</label><input id="price" name="price" required>
 <label for="stock">Stock</label><input id="stock" name="stock" value="0">
 <p><button type="submit">Add product</button></p></form>"""
-    return page("Products", table(["Product", "SKU", "Price", "Available"], rows, "Products") + form, error, status)
+    return page("Products", search + table(["Product", "SKU", "Price", "Available"], rows, "Products") + paging
+                + form, error, status)
 
 
 def product_page(product_id: int) -> HTMLResponse:
@@ -234,7 +253,9 @@ def install(app: FastAPI) -> None:
 
     # the page functions also take an error message for re-showing a form; only the path reaches them from a URL
     get("/")(lambda: home())
-    get("/products")(lambda: products_page())
+    @get("/products")
+    def show_products(q: str = "", page: int = 1, sort: str = "name"):
+        return products_page(q=q, page_no=max(page, 1), sort=sort)
     get("/products/{product_id}")(product_page)
     get("/customers")(lambda: customers_page())
     get("/customers/{customer_id}")(customer_page)
